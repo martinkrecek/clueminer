@@ -17,17 +17,17 @@
 package org.clueminer.chameleon.similarity;
 
 import java.util.ArrayList;
-import java.util.LinkedList;
 import org.clueminer.chameleon.Chameleon;
 import org.clueminer.chameleon.GraphCluster;
 import org.clueminer.chameleon.PairMerger;
+import org.clueminer.clustering.api.Clustering;
 import org.clueminer.dataset.api.Dataset;
 import org.clueminer.dataset.api.Instance;
 import org.clueminer.fixtures.clustering.FakeDatasets;
-import org.clueminer.graph.knn.KNNGraphBuilder;
 import org.clueminer.graph.adjacencyMatrix.AdjMatrixGraph;
 import org.clueminer.graph.api.Graph;
 import org.clueminer.graph.api.Node;
+import org.clueminer.graph.knn.KNNGraphBuilder;
 import org.clueminer.partitioning.api.Bisection;
 import org.clueminer.partitioning.api.Partitioning;
 import org.clueminer.partitioning.impl.FiducciaMattheyses;
@@ -68,14 +68,14 @@ public class RiRcSimilarityTest {
 
         Partitioning partitioning = new RecursiveBisection(bisection);
         Props pref = new Props();
-        ArrayList<LinkedList<Node<Instance>>> partitioningResult = partitioning.partition(maxPartitionSize, g, pref);
+        ArrayList<ArrayList<Node<Instance>>> partitioningResult = partitioning.partition(maxPartitionSize, g, pref);
 
         PairMerger merger = new PairMerger();
-        merger.initialize(partitioningResult, g, bisection, null);
+        merger.initialize(partitioningResult, g, bisection, pref);
         merger.setMergeEvaluation(subject);
-        ArrayList<GraphCluster<Instance>> clusters = merger.createClusters(partitioningResult, bisection, pref);
+        Clustering<Instance, GraphCluster<Instance>> clusters = merger.createClusters(partitioningResult, bisection, pref);
 
-        merger.computeExternalProperties();
+        merger.computeExternalProperties(clusters);
         assertEquals(12, clusters.size());
 
         pref.putDouble(Chameleon.CLOSENESS_PRIORITY, 2.0);

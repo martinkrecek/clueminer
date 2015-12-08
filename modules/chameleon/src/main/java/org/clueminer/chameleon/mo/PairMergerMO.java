@@ -25,6 +25,7 @@ import org.clueminer.chameleon.Chameleon;
 import org.clueminer.chameleon.GraphCluster;
 import org.clueminer.chameleon.similarity.ShatovskaSimilarity;
 import org.clueminer.clustering.algorithm.HClustResult;
+import org.clueminer.clustering.api.Clustering;
 import org.clueminer.clustering.api.HierarchicalResult;
 import org.clueminer.clustering.api.MergeEvaluation;
 import org.clueminer.clustering.api.dendrogram.DendroNode;
@@ -127,7 +128,7 @@ public class PairMergerMO<E extends Instance, C extends GraphCluster<E>, P exten
         }
         //System.out.println("merging: [" + curr.A.getClusterId() + ", " + curr.B.getClusterId() + "] " + curr.getValue());
         //System.out.println("   " + curr.toString());
-        LinkedList<Node<E>> clusterNodes = (LinkedList<Node<E>>) curr.A.getNodes().clone();
+        ArrayList<Node<E>> clusterNodes = (ArrayList<Node<E>>) curr.A.getNodes().clone();
         clusterNodes.addAll(curr.B.getNodes());
 
         GraphCluster<E> newCluster = new GraphCluster(clusterNodes, graph, clusters.size(), bisection, pref);
@@ -225,6 +226,11 @@ public class PairMergerMO<E extends Instance, C extends GraphCluster<E>, P exten
     @Override
     public PriorityQueue getQueue(Props pref) {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    @Override
+    public void prefilter(Clustering<E, GraphCluster<E>> clusters, ArrayList<E> noise, Props params) {
+        //
     }
 
 }

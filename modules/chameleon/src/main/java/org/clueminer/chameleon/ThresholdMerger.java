@@ -5,6 +5,7 @@ import java.util.LinkedList;
 import java.util.PriorityQueue;
 import org.clueminer.chameleon.similarity.Closeness;
 import org.clueminer.chameleon.similarity.Interconnectivity;
+import org.clueminer.clustering.api.Clustering;
 import org.clueminer.clustering.api.HierarchicalResult;
 import org.clueminer.dataset.api.Dataset;
 import org.clueminer.dataset.api.Instance;
@@ -45,8 +46,8 @@ public class ThresholdMerger<E extends Instance> extends AbstractMerger<E> {
         return name;
     }
 
-    public ArrayList<LinkedList<Node<E>>> merge(ArrayList<LinkedList<Node<E>>> clusterList, Props props) {
-        ArrayList<LinkedList<Node<E>>> result = clusterList;
+    public ArrayList<ArrayList<Node<E>>> merge(ArrayList<ArrayList<Node<E>>> clusterList, Props props) {
+        ArrayList<ArrayList<Node<E>>> result = clusterList;
         merged = true;
         while (merged) {
             merged = false;
@@ -55,9 +56,9 @@ public class ThresholdMerger<E extends Instance> extends AbstractMerger<E> {
         return result;
     }
 
-    private ArrayList<LinkedList<Node<E>>> singleMerge(ArrayList<LinkedList<Node<E>>> clusterList, Props props) {
+    private ArrayList<ArrayList<Node<E>>> singleMerge(ArrayList<ArrayList<Node<E>>> clusterList, Props props) {
         createClusters(clusterList, bisection, props);
-        computeExternalProperties();
+        computeExternalProperties(clusters);
         initiateClustersForMerging();
 
         for (int i = 0; i < clusters.size(); i++) {
@@ -116,11 +117,11 @@ public class ThresholdMerger<E extends Instance> extends AbstractMerger<E> {
      *
      * @return lists of nodes in clusters
      */
-    public ArrayList<LinkedList<Node<E>>> getNewClusters() {
-        ArrayList<LinkedList<Node<E>>> result = new ArrayList<>();
+    public ArrayList<ArrayList<Node<E>>> getNewClusters() {
+        ArrayList<ArrayList<Node<E>>> result = new ArrayList<>(clusters.size());
         for (GraphCluster<E> clust : clusters) {
             if (clust.offsprings != null) {
-                LinkedList<Node<E>> list = new LinkedList<>();
+                ArrayList<Node<E>> list = new ArrayList<>(clust.offsprings.size());
                 for (GraphCluster<E> cluster : clust.offsprings) {
                     for (Node<E> node : cluster.getNodes()) {
                         list.add(node);
@@ -140,6 +141,11 @@ public class ThresholdMerger<E extends Instance> extends AbstractMerger<E> {
     @Override
     public PriorityQueue getQueue(Props pref) {
         throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    @Override
+    public void prefilter(Clustering<E, GraphCluster<E>> clusters, ArrayList<E> noise, Props params) {
+        //
     }
 
 }

@@ -25,6 +25,7 @@ import org.clueminer.clustering.api.dendrogram.DendrogramMapping;
 import org.clueminer.clustering.api.dendrogram.DendrogramTree;
 import org.clueminer.clustering.api.dendrogram.TreeListener;
 import org.clueminer.clustering.gui.colors.ColorSchemeImpl;
+import org.clueminer.dendrogram.DistributionCollector;
 import org.clueminer.dendrogram.gui.ClassAssignment;
 import org.clueminer.dendrogram.gui.ClusterAssignment;
 import org.clueminer.dendrogram.gui.ColumnAnnotation;
@@ -35,7 +36,6 @@ import org.clueminer.dendrogram.gui.Heatmap;
 import org.clueminer.dendrogram.gui.Legend;
 import org.clueminer.dendrogram.gui.RowAnnotation;
 import org.clueminer.dendrogram.tree.AbstractScale;
-import org.clueminer.dendrogram.tree.HCLColorBar;
 import org.clueminer.dendrogram.tree.HorizontalScale;
 import org.clueminer.dendrogram.tree.VerticalScale;
 import org.clueminer.dgram.eval.SilhouettePlot;
@@ -56,8 +56,6 @@ public class DgPanel extends BPanel implements DendrogramDataListener, DendroPan
     private CutoffLine cutoff;
     private DendrogramTree columnsTree;
     private AbstractScale columnsScale;
-    //component to draw clusters colors and descriptions
-    protected HCLColorBar colorBar;
     protected DendrogramMapping dendroData;
     //component to draw an experiment dendroData
     protected Heatmap heatmap;
@@ -201,10 +199,8 @@ public class DgPanel extends BPanel implements DendrogramDataListener, DendroPan
         if (showColumnsTree) {
             heatmapHeight -= colsTreeDim;
             columnsTree.recalculate();
-        } else {
-            if (slider != null) {
-                heatmapHeight -= slider.getSize().height;
-            }
+        } else if (slider != null) {
+            heatmapHeight -= slider.getSize().height;
         }
         //column annotations is usually bigger than tree annotation
         if (columnAnnotationBar != null) {
@@ -330,16 +326,6 @@ public class DgPanel extends BPanel implements DendrogramDataListener, DendroPan
         int thirdLineHeight = Math.max(rowsScaleHeight, dim.height);
         totalHeight += thirdLineHeight;
 
-        if (showLegend) {
-            dim = legend.getSize();
-            if (showColumnsTree) {
-                legend.setBounds(heatmapXoffset + dimHeatmap.width, insets.top, dim.width, dim.height);
-            } else {
-                //we don't have extra space above heatmap
-                legend.setBounds(heatmapXoffset + dimHeatmap.width, totalHeight, dim.width, dim.height);
-            }
-        }
-
         clustAssign = clusterAssignment.getSize();
         //row tree + heatmap
         totalWidth = heatmapXoffset + dimHeatmap.width;
@@ -349,6 +335,25 @@ public class DgPanel extends BPanel implements DendrogramDataListener, DendroPan
         dim = classAssignment.getSize();
         classAssignment.setBounds(totalWidth, heatmapYoffset, dim.width, dim.height);
         totalWidth += dim.width;
+
+        if (showLegend) {
+            legend.setVisible(true);
+            if (showColumnsTree) {
+                legend.setAvailableSpace(classAssignment.getWidth(), columnsTree.getHeight());
+                dim = legend.getSize();
+                legend.setBounds(heatmapXoffset + dimHeatmap.width + columnsScale.getWidth(), insets.top, dim.width, dim.height);
+            } else {
+                //horizonal legend
+                legend.setOrientation(SwingConstants.HORIZONTAL);
+                legend.setAvailableSpace(totalWidth, rowsScaleHeight);
+                dim = legend.getSize();
+                //we don't have extra space above heatmap
+                legend.setBounds(insets.left, totalHeight, dim.width, dim.height);
+                totalHeight += dim.getHeight();
+            }
+        } else {
+            legend.setVisible(false);
+        }
 
         if (isLabelVisible()) {
             dim = rowAnnotationBar.getSize();
@@ -410,6 +415,14 @@ public class DgPanel extends BPanel implements DendrogramDataListener, DendroPan
             heatmap.setOffset(0);
             dataListeners.add(heatmap);
         }
+    }
+
+    @Override
+    public DistributionCollector getDistribution() {
+        if (heatmap != null) {
+            return heatmap.getDistribution();
+        }
+        return null;
     }
 
     private void createColumnsTree() {
@@ -520,9 +533,9 @@ public class DgPanel extends BPanel implements DendrogramDataListener, DendroPan
         if (legend == null) {
             legend = new Legend(this);
             dataListeners.add(legend);
-            if (dendroData != null) {
-                legend.setData(dendroData);
-            }
+        }
+        if (dendroData != null) {
+            legend.setData(dendroData);
         }
     }
 

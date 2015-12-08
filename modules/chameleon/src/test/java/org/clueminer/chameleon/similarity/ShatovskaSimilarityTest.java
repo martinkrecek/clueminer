@@ -17,16 +17,16 @@
 package org.clueminer.chameleon.similarity;
 
 import java.util.ArrayList;
-import java.util.LinkedList;
 import org.clueminer.chameleon.GraphCluster;
 import org.clueminer.chameleon.PairMerger;
+import org.clueminer.clustering.api.Clustering;
 import org.clueminer.dataset.api.Dataset;
 import org.clueminer.dataset.api.Instance;
 import org.clueminer.fixtures.clustering.FakeDatasets;
-import org.clueminer.graph.knn.KNNGraphBuilder;
 import org.clueminer.graph.adjacencyMatrix.AdjMatrixGraph;
 import org.clueminer.graph.api.Graph;
 import org.clueminer.graph.api.Node;
+import org.clueminer.graph.knn.KNNGraphBuilder;
 import org.clueminer.partitioning.api.Bisection;
 import org.clueminer.partitioning.api.Partitioning;
 import org.clueminer.partitioning.impl.FiducciaMattheyses;
@@ -60,7 +60,6 @@ public class ShatovskaSimilarityTest {
         KNNGraphBuilder knn = new KNNGraphBuilder();
         int k = 5;
         int maxPartitionSize = 20;
-        double closenessPriority = 2.0;
         Props pref = new Props();
         Graph g = new AdjMatrixGraph();
         Bisection bisection = new FiducciaMattheyses(10);
@@ -68,13 +67,13 @@ public class ShatovskaSimilarityTest {
         g = knn.getNeighborGraph(dataset, g, k);
 
         Partitioning partitioning = new RecursiveBisection(bisection);
-        ArrayList<LinkedList<Node<Instance>>> partitioningResult = partitioning.partition(maxPartitionSize, g, pref);
+        ArrayList<ArrayList<Node<Instance>>> partitioningResult = partitioning.partition(maxPartitionSize, g, pref);
 
         PairMerger merger = new PairMerger();
         merger.setMergeEvaluation(subject);
-        merger.initialize(partitioningResult, g, bisection, null);
-        ArrayList<GraphCluster<Instance>> clusters = merger.createClusters(partitioningResult, bisection, pref);
-        merger.computeExternalProperties();
+        merger.initialize(partitioningResult, g, bisection, pref);
+        Clustering<Instance, GraphCluster<Instance>> clusters = merger.createClusters(partitioningResult, bisection, pref);
+        merger.computeExternalProperties(clusters);
         assertEquals(12, clusters.size());
 
         assertEquals(4.464646866748596E-13, subject.score(clusters.get(0), clusters.get(1), pref), delta);

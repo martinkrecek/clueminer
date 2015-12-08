@@ -16,6 +16,7 @@ import org.junit.After;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotSame;
+import static org.junit.Assert.assertTrue;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -327,6 +328,17 @@ public class ClusterListTest {
         assertEquals(4, c1.size());
 
         c1.remove(c1.get(0));
+        assertEquals(3, c1.size());
+        //another cluster with ID 0 will be present
+        assertEquals(0, c1.get(0).getClusterId());
+    }
+
+    @Test
+    public void testRemoveInt() {
+        Clustering<Instance, Cluster<Instance>> c1 = createClusters();
+        assertEquals(4, c1.size());
+
+        assertTrue(c1.remove(0));
         assertEquals(3, c1.size());
         //another cluster with ID 0 will be present
         assertEquals(0, c1.get(0).getClusterId());

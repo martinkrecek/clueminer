@@ -106,8 +106,10 @@ public class ScatterPlot<E extends Instance, C extends Cluster<E>> extends JPane
         this.currChart = chart;
 
         for (Cluster<E> clust : clustering) {
-            Series s = chart.addSeries(clust.getName(), clust.attrCollection(attrX), clust.attrCollection(attrY));
-            s.setMarkerColor(clust.getColor());
+            if (clust.size() > 0) {
+                Series s = chart.addSeries(clust.getName(), clust.attrCollection(attrX), clust.attrCollection(attrY));
+                s.setMarkerColor(clust.getColor());
+            }
         }
         XChartPanel xchart = new XChartPanel(chart);
         if (mouseListener != null) {
@@ -164,6 +166,13 @@ public class ScatterPlot<E extends Instance, C extends Cluster<E>> extends JPane
     public Rectangle.Double tranlateSelection(Shape shape) {
         if (currChart != null) {
             return currChart.translateSelection(shape.getBounds());
+        }
+        throw new RuntimeException("current chart not set");
+    }
+
+    public double[] translate(Point2D point) {
+        if (currChart != null) {
+            return currChart.translate(point);
         }
         throw new RuntimeException("current chart not set");
     }

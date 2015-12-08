@@ -283,9 +283,9 @@ public class HClustResult<E extends Instance, C extends Cluster<E>> implements H
     private void checkCutoff(DendroNode node, double cutoff, Clustering clusters, int[] assign) {
         if (node.isLeaf()) {
             if (treeData.containsClusters()) {
-                DClusterLeaf leaf = (DClusterLeaf) node;
+                DClusterLeaf<E> leaf = (DClusterLeaf) node;
                 Cluster clust = makeCluster(clusters);
-                for (Instance instance : leaf.getInstances()) {
+                for (E instance : leaf.getInstances()) {
                     clust.add(instance);
                     assign[instance.getIndex()] = clust.getClusterId();
                 }
@@ -318,6 +318,30 @@ public class HClustResult<E extends Instance, C extends Cluster<E>> implements H
         }
     }
 
+    @Override
+    public DendroNode findTreeBelow(DendroNode node, double x, double y) {
+        if (node.isLeaf()) {
+            return null;
+        }
+        if (x >= node.getHeight()) {
+            return node;
+        }
+        if (node.getLeft().getHeight() < x && node.getRight().getHeight() < x) {
+            //choose left or right subtree
+            if (node.getPosition() < y) {
+                return node.getLeft();
+            }
+            return node.getRight();
+        }
+        //System.out.println("node [" + node.getHeight() + ", " + node.getPosition() + "]");
+        //DendroNode res;
+
+        if (node.getPosition() < y) {
+            return findTreeBelow(node.getLeft(), x, y);
+        }
+        return findTreeBelow(node.getRight(), x, y);
+    }
+
     private Cluster makeCluster(Clustering clusters) {
         Cluster clust = clusters.createCluster();
         clust.setColor(colorGenerator.next());
@@ -331,8 +355,8 @@ public class HClustResult<E extends Instance, C extends Cluster<E>> implements H
     private void subtreeToCluster(DendroNode node, Cluster c, int[] assign) {
         if (node.isLeaf()) {
             if (treeData.containsClusters()) {
-                DClusterLeaf leaf = (DClusterLeaf) node;
-                for (Instance instance : leaf.getInstances()) {
+                DClusterLeaf<E> leaf = (DClusterLeaf) node;
+                for (E instance : leaf.getInstances()) {
                     c.add(instance);
                     assign[instance.getIndex()] = c.getClusterId();
                 }
@@ -371,18 +395,16 @@ public class HClustResult<E extends Instance, C extends Cluster<E>> implements H
     private double findLevelHeight(DendroNode node, int level) {
         if (node.level() == level) {
             return node.getHeight();
+        } else if (node.isLeaf()) {
+            return -1;
         } else {
-            if (node.isLeaf()) {
-                return -1;
-            } else {
-                double ret = findLevelHeight(node.getLeft(), level);
-                if (ret > -1) {
-                    return ret;
-                }
-                ret = findLevelHeight(node.getRight(), level);
-                if (ret > -1) {
-                    return ret;
-                }
+            double ret = findLevelHeight(node.getLeft(), level);
+            if (ret > -1) {
+                return ret;
+            }
+            ret = findLevelHeight(node.getRight(), level);
+            if (ret > -1) {
+                return ret;
             }
         }
         return -1;
@@ -637,13 +659,13 @@ public class HClustResult<E extends Instance, C extends Cluster<E>> implements H
 
     @Override
     public int size() {
-        if (resultType == ClusteringType.COLUMNS_CLUSTERING) {
-            return dataset.attributeCount();
-        } else if (resultType == ClusteringType.ROWS_CLUSTERING) {
-            return dataset.size();
-        } else {
-            throw new RuntimeException("Don't know wether cluster rows or columns.");
+        switch (resultType) {
+            case COLUMNS_CLUSTERING:
+                return dataset.attributeCount();
+            case ROWS_CLUSTERING:
+                return dataset.size();
         }
+        throw new RuntimeException("Don't know wether cluster rows or columns.");
     }
 
     @Override

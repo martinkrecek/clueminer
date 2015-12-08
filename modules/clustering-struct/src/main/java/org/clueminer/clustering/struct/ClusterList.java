@@ -67,6 +67,10 @@ public class ClusterList<E extends Instance, C extends Cluster<E>> implements Cl
         name2id = new HashMap<>(capacity);
     }
 
+    public ClusterList(Integer capacity) {
+        this(capacity.intValue());
+    }
+
     /**
      * Some identification of clustering doesn't have to be unique, but short
      *
@@ -370,10 +374,20 @@ public class ClusterList<E extends Instance, C extends Cluster<E>> implements Cl
     public boolean remove(C cluster) {
         //name2id.remove(cluster.getName());
         int idx = cluster.getClusterId();
+        if (data[idx] != null && data[idx].equals(cluster)) {
+            return remove(idx);
+        } else {
+            System.out.println("failed to remove " + cluster.getClusterId());
+        }
+        return false;
+    }
+
+    @Override
+    public boolean remove(int idx) {
         if (idx > n || idx < 0) {
             return false;
         }
-        if (data[idx] != null && data[idx].equals(cluster)) {
+        if (data[idx] != null) {
             if (n == 0) {
                 data[idx] = null;
                 return true;

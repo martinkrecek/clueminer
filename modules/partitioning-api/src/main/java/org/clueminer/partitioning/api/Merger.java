@@ -17,12 +17,13 @@
 package org.clueminer.partitioning.api;
 
 import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
 import java.util.PriorityQueue;
+import org.clueminer.clustering.api.Cluster;
+import org.clueminer.clustering.api.Clustering;
 import org.clueminer.clustering.api.HierarchicalResult;
 import org.clueminer.dataset.api.Dataset;
 import org.clueminer.dataset.api.Instance;
+import org.clueminer.distance.api.Distance;
 import org.clueminer.graph.api.Graph;
 import org.clueminer.graph.api.Node;
 import org.clueminer.utils.Props;
@@ -49,9 +50,9 @@ public interface Merger<E extends Instance> {
      * @param params
      * @return
      */
-    List<Instance> initialize(ArrayList<LinkedList<Node<E>>> clusterList, Graph graph, Bisection bisection, Props params);
+    ArrayList<E> initialize(ArrayList<ArrayList<Node<E>>> clusterList, Graph<E> graph, Bisection bisection, Props params);
 
-    List<Instance> initialize(ArrayList<LinkedList<Node<E>>> clusterList, Graph graph, Bisection bisection, Props params, List<Instance> noise);
+    ArrayList<E> initialize(ArrayList<ArrayList<Node<E>>> clusterList, Graph<E> graph, Bisection bisection, Props params, ArrayList<E> noise);
 
     /**
      * Merge clusters while creating a hierarchical structure (dendrogram)
@@ -63,4 +64,18 @@ public interface Merger<E extends Instance> {
     HierarchicalResult getHierarchy(Dataset<E> dataset, Props pref);
 
     PriorityQueue getQueue(Props pref);
+
+    /**
+     * List of clusters
+     *
+     * @return clusters to merge
+     */
+    Clustering<E, ? extends Cluster<E>> getClusters();
+
+    /**
+     * Set distance measure used for computation of similarity graph
+     *
+     * @param dm a distance function
+     */
+    void setDistanceMeasure(Distance dm);
 }

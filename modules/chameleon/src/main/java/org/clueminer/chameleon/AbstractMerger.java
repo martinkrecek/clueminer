@@ -1,12 +1,14 @@
 package org.clueminer.chameleon;
 
+import edu.umn.metis.HMetisBisector;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
+import org.clueminer.clustering.api.Clustering;
 import org.clueminer.clustering.api.dendrogram.DendroNode;
+import org.clueminer.clustering.api.factory.Clusterings;
 import org.clueminer.dataset.api.Instance;
+import org.clueminer.distance.api.Distance;
 import org.clueminer.graph.api.Edge;
 import org.clueminer.graph.api.Graph;
 import org.clueminer.graph.api.Node;
@@ -14,7 +16,6 @@ import org.clueminer.hclust.DClusterLeaf;
 import org.clueminer.hclust.DTreeNode;
 import org.clueminer.partitioning.api.Bisection;
 import org.clueminer.partitioning.api.Merger;
-import edu.umn.metis.HMetisBisector;
 import org.clueminer.utils.PairValue;
 import org.clueminer.utils.Props;
 
@@ -36,14 +37,9 @@ public abstract class AbstractMerger<E extends Instance> implements Merger<E> {
     protected int nodeToCluster[];
 
     /**
-     * Clusters to merge.
-     */
-    protected ArrayList<GraphCluster<E>> clusters;
-
-    /**
-     * Set of merged clusters which are ignored. They could also be deleted but
-     * deleting them from cluster array, external properties matrix and priority
-     * queue would be too expensive.
+     * Set of merged clustering which are ignored. They could also be deleted
+     * but deleting them from cluster array, external properties matrix and
+     * priority queue would be too expensive.
      */
     protected HashSet<Integer> blacklist = new HashSet<>();
 
@@ -61,52 +57,41 @@ public abstract class AbstractMerger<E extends Instance> implements Merger<E> {
      */
     protected int level;
 
-    @Override
-    public List<Instance> initialize(ArrayList<LinkedList<Node<E>>> clusterList, Graph graph, Bisection bisection, Props params) {
-        return this.initialize(clusterList, graph, bisection, params, null);
-    }
+    protected Clustering<E, GraphCluster<E>> clusters;
+
+    /**
+     * Distance measure used by the k-NN algorithm
+     */
+    protected Distance dm;
 
     @Override
-    public List<Instance> initialize(ArrayList<LinkedList<Node<E>>> clusterList, Graph graph, Bisection bisection, Props params, List<Instance> noise) {
+    public ArrayList<E> initialize(ArrayList<ArrayList<Node<E>>> clusterList, Graph<E> graph, Bisection bisection, Props params) {
+        return initialize(clusterList, graph, bisection, params, null);
+    }
+
+    /**
+     * Try to detect noise
+     *
+     * @param clusters
+     * @param noise
+     * @param params
+     */
+    public abstract void prefilter(Clustering<E, GraphCluster<E>> clusters, ArrayList<E> noise, Props params);
+
+    @Override
+    public ArrayList<E> initialize(ArrayList<ArrayList<Node<E>>> clusterList, Graph<E> graph, Bisection bisection, Props params, ArrayList<E> noise) {
         this.graph = graph;
         this.bisection = bisection;
         blacklist = new HashSet<>();
-        createClusters(clusterList, bisection, params);
-        if (params != null && params.getInt(Chameleon.NOISE_DETECTION, 0) == Chameleon.NOISE_INTERNAL_PROPERTIES) {
-            noise = identifyNoise(params);
-            if (noise != null) {
-                int i = 0;
-                for (GraphCluster cluster : clusters) {
-                    cluster.setClusterId(i);
-                    i++;
-                }
-            }
-        }
-        assignNodesToCluters();
-        computeExternalProperties();
-        nodes = initiateTree((List<Instance>) noise);
+        clusters = createClusters(clusterList, bisection, params);
+        prefilter(clusters, noise, params);
+        assignNodesToCluters(clusters);
+        computeExternalProperties(clusters);
+        nodes = initiateTree(clusters, noise);
         return noise;
     }
 
-    private List<Instance> identifyNoise(Props params) {
-        double median = computeMedianCl();
-        List<Instance> noise = null;
-        for (int i = 0; i < clusters.size(); i++) {
-            if (clusters.get(i).getACL() < median / params.getDouble(Chameleon.INTERNAL_NOISE_THRESHOLD, 2)) {
-                if (noise == null) {
-                    noise = new LinkedList<>();
-                }
-                for (Node node : clusters.get(i).getNodes()) {
-                    noise.add(node.getInstance());
-                }
-                clusters.remove(i);
-                i--;
-            }
-        }
-        return noise;
-    }
-
-    private double computeMedianCl() {
+    protected double computeMedianCl(Clustering<E, GraphCluster<E>> clusters) {
         double connectivities[] = new double[clusters.size()];
         int i = 0;
         for (GraphCluster cluster : clusters) {
@@ -121,35 +106,49 @@ public abstract class AbstractMerger<E extends Instance> implements Merger<E> {
     }
 
     /**
-     * Creates clusters from lists of nodes
+     * Creates clustering from lists of nodes
      *
      * @param clusterList
      * @param bisection
      * @param props
-     * @return list of clusters
+     * @return list of clustering
      */
-    public ArrayList<GraphCluster<E>> createClusters(ArrayList<LinkedList<Node<E>>> clusterList, Bisection bisection, Props props) {
-        clusters = new ArrayList<>(clusterList.size());
+    public Clustering<E, GraphCluster<E>> createClusters(ArrayList<ArrayList<Node<E>>> clusterList, Bisection bisection, Props props) {
+        Clustering<E, GraphCluster<E>> clustering = (Clustering<E, GraphCluster<E>>) Clusterings.newList(clusterList.size());
         int i = 0;
-        for (LinkedList<Node<E>> cluster : clusterList) {
-            clusters.add(new GraphCluster(cluster, graph, i, bisection, props));
+        GraphCluster grc;
+        for (ArrayList<Node<E>> cluster : clusterList) {
+            grc = new GraphCluster(cluster, graph, i, bisection, props);
+            clustering.add(grc);
             i++;
         }
-        return clusters;
+        return clustering;
+    }
+
+    public void renumberClusters(Clustering<E, GraphCluster<E>> clusters, ArrayList<E> noise) {
+        if (noise != null && noise.size() > 0) {
+            int i = 0;
+            for (GraphCluster cluster : clusters) {
+                cluster.setClusterId(i);
+                i++;
+            }
+        }
     }
 
     /**
-     * Assigns clusters to nodes according to list of clusters in each node.
-     * Having clusters assigned to nodes can be advantageous in some cases
+     * Assigns clustering to nodes according to list of clustering in each node.
+     * Having clustering assigned to nodes can be advantageous in some cases
+     *
+     * @param clusters
      */
-    private void assignNodesToCluters() {
+    protected void assignNodesToCluters(Clustering<E, GraphCluster<E>> clusters) {
         nodeToCluster = new int[graph.getNodeCount()];
         //Fill with -1 so we can easily recognise nodes assigned to noise
         Arrays.fill(nodeToCluster, -1);
         int i = 0;
-        for (GraphCluster cluster : clusters) {
-            for (Object node : cluster.getNodes()) {
-                nodeToCluster[graph.getIndex((Node) node)] = i;
+        for (GraphCluster<E> cluster : clusters) {
+            for (Node<E> node : cluster.getNodes()) {
+                nodeToCluster[graph.getIndex(node)] = i;
             }
             i++;
         }
@@ -157,13 +156,14 @@ public abstract class AbstractMerger<E extends Instance> implements Merger<E> {
 
     /**
      * Computes external interconnectivity and closeness between every two
-     * clusters. Computed values are stored in a triangular matrix.
+     * clustering. Computed values are stored in a triangular matrix.
      *
-     * Goes through all edges and if the edge connects different clusters, the
+     * Goes through all edges and if the edge connects different clustering, the
      * external values are updated
      *
+     * @param clusters
      */
-    public void computeExternalProperties() {
+    public void computeExternalProperties(Clustering<E, GraphCluster<E>> clusters) {
         GraphPropertyStore gps = new GraphPropertyStore(clusters.size());
         int firstClusterID, secondClusterID;
         for (Edge edge : graph.getEdges()) {
@@ -183,14 +183,15 @@ public abstract class AbstractMerger<E extends Instance> implements Merger<E> {
     /**
      * Creates tree leaves and fills them with nodes.
      *
+     * @param clusters
      * @param noise
      * @return
      */
-    protected DendroNode[] initiateTree(List<Instance> noise) {
+    protected DendroNode[] initiateTree(Clustering<E, GraphCluster<E>> clusters, ArrayList<E> noise) {
         DendroNode[] treeNodes;
         //Create special node for noise only if noise is present
         treeNodes = new DendroNode[(2 * clusters.size())];
-        if (noise != null) {
+        if (noise != null && noise.size() > 0) {
             treeNodes[2 * clusters.size() - 1] = new DClusterLeaf(clusters.size(), noise);
             treeNodes[2 * clusters.size() - 1].setHeight(0);
             treeNodes[2 * clusters.size() - 1].setLevel(0);
@@ -205,8 +206,8 @@ public abstract class AbstractMerger<E extends Instance> implements Merger<E> {
         return treeNodes;
     }
 
-    protected LinkedList<Instance> createInstanceList(LinkedList<Node<E>> nodes) {
-        LinkedList<Instance> out = new LinkedList<>();
+    protected ArrayList<Instance> createInstanceList(ArrayList<Node<E>> nodes) {
+        ArrayList<Instance> out = new ArrayList<>(nodes.size());
         for (Node node : nodes) {
             out.add(node.getInstance());
         }
@@ -241,8 +242,8 @@ public abstract class AbstractMerger<E extends Instance> implements Merger<E> {
      * end of the external properties matrix.
      *
      * @param cluster new cluster
-     * @param c1 clusters that are being merged
-     * @param c2 clusters that are being merged
+     * @param c1 clustering that are being merged
+     * @param c2 clustering that are being merged
      */
     protected void updateExternalProperties(GraphCluster<E> cluster, GraphCluster<E> c1, GraphCluster<E> c2) {
         double eic1, eic2, cnt1, cnt2, eic, ecl, cnt;
@@ -320,8 +321,14 @@ public abstract class AbstractMerger<E extends Instance> implements Merger<E> {
         nodes[clusters.size() - 1] = newNode;
     }
 
-    public ArrayList<GraphCluster<E>> getClusters() {
+    @Override
+    public Clustering<E, GraphCluster<E>> getClusters() {
         return clusters;
+    }
+
+    @Override
+    public void setDistanceMeasure(Distance dm) {
+        this.dm = dm;
     }
 
 }

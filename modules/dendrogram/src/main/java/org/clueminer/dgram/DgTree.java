@@ -5,8 +5,12 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Insets;
+import java.awt.Point;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseMotionListener;
 import java.awt.geom.Ellipse2D;
-import java.util.logging.Logger;
+import java.awt.image.BufferedImage;
+import javax.swing.SwingConstants;
 import javax.swing.event.EventListenerList;
 import org.clueminer.clustering.api.HierarchicalResult;
 import org.clueminer.clustering.api.dendrogram.DendroNode;
@@ -22,10 +26,11 @@ import org.clueminer.hclust.DLeaf;
 import org.clueminer.std.StdScale;
 
 /**
+ * Visualize dendrogram tree
  *
  * @author Tomas Barton
  */
-public abstract class DgTree extends BPanel implements DendrogramDataListener, DendrogramTree {
+public abstract class DgTree extends BPanel implements DendrogramDataListener, DendrogramTree, MouseMotionListener {
 
     protected DendroTreeData treeData;
     protected DendrogramMapping dendroData;
@@ -40,9 +45,10 @@ public abstract class DgTree extends BPanel implements DendrogramDataListener, D
     private Color treeColor = Color.blue;
     private static final long serialVersionUID = -6201677645559622330L;
     protected EventListenerList treeListeners = new EventListenerList();
-    private static final Logger logger = Logger.getLogger(DgTree.class.getName());
-    private final StdScale scale = new StdScale();
+    protected final StdScale scale = new StdScale();
     protected final Insets insets = new Insets(0, 0, 0, 0);
+    //HORIZONTAL represent rows clustering, while VERTICAL columns clustering
+    protected int orientation;
     /**
      * mark nodes in dendrogram with a circle
      */
@@ -56,6 +62,11 @@ public abstract class DgTree extends BPanel implements DendrogramDataListener, D
         elementHeight = elem.height;
         this.fitToSpace = false;
         this.preserveAlpha = true;
+        initComponents();
+    }
+
+    private void initComponents() {
+        addMouseMotionListener(this);
     }
 
     @Override
@@ -66,6 +77,18 @@ public abstract class DgTree extends BPanel implements DendrogramDataListener, D
 
     @Override
     public abstract void cellHeightChanged(DendrogramDataEvent evt, int height, boolean isAdjusting);
+
+    /**
+     * Data containing hierarchical clustering result
+     *
+     * @return rows or columns clustering
+     */
+    public HierarchicalResult getHierarchicalData() {
+        if (orientation == SwingConstants.HORIZONTAL) {
+            return dendroData.getRowsResult();
+        }
+        return dendroData.getColsResult();
+    }
 
     @Override
     public void render(Graphics2D g) {
@@ -261,4 +284,38 @@ public abstract class DgTree extends BPanel implements DendrogramDataListener, D
     public String toString() {
         return this.getClass().getSimpleName();
     }
+
+    @Override
+    public void mouseDragged(MouseEvent e) {
+        //
+    }
+
+    @Override
+    public void mouseMoved(MouseEvent e) {
+        DendroNode node = findSubTree(e.getPoint());
+        if (bufferedImage == null) {
+            return;
+        }
+        if (node != null) {
+            //Graphics2D g2 = bufferedImage.createGraphics();
+            BufferedImage image = new BufferedImage(bufferedImage.getWidth(), bufferedImage.getHeight(), BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g2 = (Graphics2D) image.getGraphics();
+            g2.setColor(Color.RED);
+            drawSubTree(g2, node);
+            bufferedImage.createGraphics().drawImage(image, null, 0, 0);
+            repaint();
+        } else {
+            resetCache();
+        }
+
+    }
+
+    /**
+     * Find subtree below given point
+     *
+     * @param p
+     * @return
+     */
+    public abstract DendroNode findSubTree(Point p);
+
 }

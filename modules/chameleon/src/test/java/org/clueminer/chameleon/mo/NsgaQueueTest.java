@@ -22,14 +22,15 @@ import java.util.List;
 import org.clueminer.chameleon.GraphCluster;
 import org.clueminer.chameleon.similarity.RiRcSimilarity;
 import org.clueminer.chameleon.similarity.ShatovskaSimilarity;
+import org.clueminer.clustering.api.Clustering;
 import org.clueminer.clustering.api.MergeEvaluation;
 import org.clueminer.dataset.api.Dataset;
 import org.clueminer.dataset.api.Instance;
 import org.clueminer.fixtures.clustering.FakeDatasets;
-import org.clueminer.graph.knn.KNNGraphBuilder;
 import org.clueminer.graph.adjacencyMatrix.AdjMatrixGraph;
 import org.clueminer.graph.api.Graph;
 import org.clueminer.graph.api.Node;
+import org.clueminer.graph.knn.KNNGraphBuilder;
 import org.clueminer.partitioning.api.Bisection;
 import org.clueminer.partitioning.api.Partitioning;
 import org.clueminer.partitioning.impl.FiducciaMattheyses;
@@ -63,14 +64,14 @@ public class NsgaQueueTest {
         g = knn.getNeighborGraph(dataset, g, k);
 
         Partitioning partitioning = new RecursiveBisection(bisection);
-        ArrayList<LinkedList<Node>> partitioningResult = partitioning.partition(maxPartitionSize, g, props);
+        ArrayList<ArrayList<Node>> partitioningResult = partitioning.partition(maxPartitionSize, g, props);
 
         List<MergeEvaluation> objectives = new LinkedList<>();
         objectives.add(new RiRcSimilarity());
         objectives.add(new ShatovskaSimilarity());
 
         PairMergerMOF merger = new PairMergerMOF();
-        merger.initialize(partitioningResult, g, bisection, null);
+        merger.initialize(partitioningResult, g, bisection, props);
         merger.setObjectives(objectives);
 
         ArrayList<MoPair> pairs = merger.createPairs(partitioningResult.size(), props);
@@ -104,14 +105,14 @@ public class NsgaQueueTest {
         g = knn.getNeighborGraph(dataset, g, k);
 
         Partitioning partitioning = new RecursiveBisection(bisection);
-        ArrayList<LinkedList<Node>> partitioningResult = partitioning.partition(maxPartitionSize, g, props);
+        ArrayList<ArrayList<Node>> partitioningResult = partitioning.partition(maxPartitionSize, g, props);
 
         List<MergeEvaluation> objectives = new LinkedList<>();
         objectives.add(new RiRcSimilarity());
         objectives.add(new ShatovskaSimilarity());
 
         PairMergerMOF merger = new PairMergerMOF();
-        merger.initialize(partitioningResult, g, bisection, null);
+        merger.initialize(partitioningResult, g, bisection, props);
         merger.setObjectives(objectives);
 
         ArrayList<MoPair> pairs = merger.createPairs(partitioningResult.size(), props);
@@ -143,14 +144,14 @@ public class NsgaQueueTest {
         g = knn.getNeighborGraph(dataset, g, k);
 
         Partitioning partitioning = new RecursiveBisection(bisection);
-        ArrayList<LinkedList<Node>> partitioningResult = partitioning.partition(maxPartitionSize, g, props);
+        ArrayList<ArrayList<Node>> partitioningResult = partitioning.partition(maxPartitionSize, g, props);
 
         List<MergeEvaluation> objectives = new LinkedList<>();
         objectives.add(new RiRcSimilarity());
         objectives.add(new ShatovskaSimilarity());
 
         PairMergerMOF merger = new PairMergerMOF();
-        merger.initialize(partitioningResult, g, bisection, null);
+        merger.initialize(partitioningResult, g, bisection, props);
         merger.setObjectives(objectives);
 
         ArrayList<MoPair> pairs = merger.createPairs(partitioningResult.size(), props);
@@ -162,11 +163,11 @@ public class NsgaQueueTest {
         //TODO: make sure we can remove and add items to queue in fast manner
         int n = 21;
         MoPair<Instance, GraphCluster<Instance>> item;
-        ArrayList<GraphCluster<Instance>> clusters = merger.getClusters();
+        Clustering<Instance, GraphCluster<Instance>> clusters = merger.getClusters();
         for (int i = 0; i < n; i++) {
             item = queue.poll();
             assertNotNull(item);
-            LinkedList<Node<Instance>> clusterNodes = item.A.getNodes();
+            ArrayList<Node<Instance>> clusterNodes = item.A.getNodes();
             clusterNodes.addAll(item.B.getNodes());
             GraphCluster<Instance> newCluster = new GraphCluster(clusterNodes, g, clusters.size(), bisection, props);
             clusters.add(newCluster);
