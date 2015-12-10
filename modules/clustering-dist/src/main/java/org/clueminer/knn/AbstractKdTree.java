@@ -32,30 +32,48 @@ import org.clueminer.utils.Props;
  * @author deric
  * @param <E>
  */
-public class KDTree<E extends Instance> extends AbstractKNN<E> implements NearestNeighborSearch<E>, KNNSearch<E>, RNNSearch<E> {
+public abstract class AbstractKdTree<T> {
 
     public static final String name = "KD-tree";
+
+    // All types
+    private final int dimensions;
+    private final AbstractKdTree<T> parent;
+
+    // Root only
+    private final LinkedList<double[]> locationStack;
+    private final Integer sizeLimit;
+
+    // Leaf only
+    private double[][] locations;
+    private Object[] data;
+    private int locationCount;
+
+    // Stem only
+    private AbstractKdTree<T> left, right;
+    private int splitDimension;
+    private double splitValue;
+
+    // Bounds
+    private double[] minLimit, maxLimit;
+    private boolean singularity;
+
+    // Temporary
+    private Status status;
 
     /**
      * The root node of KD-Tree.
      */
-    private KDNode root;
-    /**
-     * The index of objects in each nodes.
-     */
-    private int[] index;
+    protected AbstractKdTree(int dimensions, Integer sizeLimit) {
+        this.dimensions = dimensions;
 
     /**
      * Constructor.
      *
      * @param dataset
      */
-    public KDTree(Dataset<E> dataset) {
-        this.dataset = dataset;
-        this.dm = EuclideanDistance.getInstance();
-        ((EuclideanDistance) dm).setSqrt(false);
-        buildTree();
-    }
+    protected AbstractKdTree(AbstractKdTree<T> parent, boolean right) {
+        this.dimensions = parent.dimensions;
 
     public KDTree() {
         this.dm = new EuclideanDistance();
@@ -89,8 +107,8 @@ public class KDTree<E extends Instance> extends AbstractKNN<E> implements Neares
     /**
      * Build a k-d tree from the given set of dataset.
      */
-    private KDNode buildNode(int begin, int end) {
-        int d = dataset.attributeCount();
+    public void addPoint(double[] location, T value) {
+        AbstractKdTree<T> cursor = this;
 
         // Allocate the node
         KDNode node = new KDNode();
@@ -108,11 +126,27 @@ public class KDTree<E extends Instance> extends AbstractKNN<E> implements Neares
             upperBound[i] = dataset.get(index[begin], i);
         }
 
-        for (int i = begin + 1; i < end; i++) {
-            for (int j = 0; j < d; j++) {
-                double c = dataset.get(index[i], j);
-                if (lowerBound[j] > c) {
-                    lowerBound[j] = c;
+                // Create child leaves
+                AbstractKdTree<T> left = new ChildNode(cursor, false);
+                AbstractKdTree<T> right = new ChildNode(cursor, true);
+
+                // Move locations into children
+                for (int i = 0; i < cursor.locationCount; i++) {
+                    double[] oldLocation = cursor.locations[i];
+                    Object oldData = cursor.data[i];
+                    if (oldLocation[cursor.splitDimension] > cursor.splitValue) {
+                        // Right
+                        right.locations[right.locationCount] = oldLocation;
+                        right.data[right.locationCount] = oldData;
+                        right.locationCount++;
+                        right.extendBounds(oldLocation);
+                    } else {
+                        // Left
+                        left.locations[left.locationCount] = oldLocation;
+                        left.data[left.locationCount] = oldData;
+                        left.locationCount++;
+                        left.extendBounds(oldLocation);
+                    }
                 }
                 if (upperBound[j] < c) {
                     upperBound[j] = c;
@@ -152,9 +186,21 @@ public class KDTree<E extends Instance> extends AbstractKNN<E> implements Neares
                 i1Good = i2Good = true;
             }
 
-            if (i1Good) {
-                i1++;
-                size++;
+    /**
+     * Remove the oldest value from the tree. Note: This cannot trim the bounds
+     * of nodes, nor empty nodes, and thus you can't expect it to perfectly
+     * preserve the speed of the tree as you keep adding.
+     */
+    private void removeOld() {
+        double[] location = this.locationStack.removeFirst();
+        AbstractKdTree<T> cursor = this;
+
+        // Find the node where the point is
+        while (cursor.locations == null) {
+            if (location[cursor.splitDimension] > cursor.splitValue) {
+                cursor = cursor.right;
+            } else {
+                cursor = cursor.left;
             }
 
             if (i2Good) {
@@ -177,12 +223,37 @@ public class KDTree<E extends Instance> extends AbstractKNN<E> implements Neares
      * @param node the root of subtree.
      * @param neighbor the current nearest neighbor.
      */
-    private void search(E q, KDNode node, Neighbor<E> neighbor) {
-        if (node.isLeaf()) {
-            // look at all the instances in this leaf
-            for (int idx = node.index; idx < node.index + node.count; idx++) {
-                if (q == dataset.get(index[idx]) && identicalExcluded) {
-                    continue;
+    @SuppressWarnings("unchecked")
+    public List<Entry<T>> nearestNeighbor(double[] location, int count, boolean sequentialSorting) {
+        AbstractKdTree<T> cursor = this;
+        cursor.status = Status.NONE;
+        double range = Double.POSITIVE_INFINITY;
+        ResultHeap resultHeap = new ResultHeap(count);
+
+        do {
+            if (cursor.status == Status.ALLVISITED) {
+                // At a fully visited part. Move up the tree
+                cursor = cursor.parent;
+                continue;
+            }
+
+            if (cursor.status == Status.NONE && cursor.locations != null) {
+                // At a leaf. Use the data.
+                if (cursor.locationCount > 0) {
+                    if (cursor.singularity) {
+                        double dist = pointDist(cursor.locations[0], location);
+                        if (dist <= range) {
+                            for (int i = 0; i < cursor.locationCount; i++) {
+                                resultHeap.addValue(dist, cursor.data[i]);
+                            }
+                        }
+                    } else {
+                        for (int i = 0; i < cursor.locationCount; i++) {
+                            double dist = pointDist(cursor.locations[i], location);
+                            resultHeap.addValue(dist, cursor.data[i]);
+                        }
+                    }
+                    range = resultHeap.getMaxDist();
                 }
                 //TODO: squared distance would be enough
                 double distance = dm.measure(q, dataset.get(index[idx]));
@@ -192,15 +263,28 @@ public class KDTree<E extends Instance> extends AbstractKNN<E> implements Neares
                     neighbor.distance = distance;
                 }
             }
-        } else {
-            KDNode nearer, further;
-            double diff = q.get(node.split) - node.cutoff;
-            if (diff < 0) {
-                nearer = node.lower;
-                further = node.upper;
-            } else {
-                nearer = node.upper;
-                further = node.lower;
+
+            // Going to descend
+            AbstractKdTree<T> nextCursor = null;
+            if (cursor.status == Status.NONE) {
+                // At a fresh node, descend the most probably useful direction
+                if (location[cursor.splitDimension] > cursor.splitValue) {
+                    // Descend right
+                    nextCursor = cursor.right;
+                    cursor.status = Status.RIGHTVISITED;
+                } else {
+                    // Descend left;
+                    nextCursor = cursor.left;
+                    cursor.status = Status.LEFTVISITED;
+                }
+            } else if (cursor.status == Status.LEFTVISITED) {
+                // Left node visited, descend right.
+                nextCursor = cursor.right;
+                cursor.status = Status.ALLVISITED;
+            } else if (cursor.status == Status.RIGHTVISITED) {
+                // Right node visited, descend left.
+                nextCursor = cursor.left;
+                cursor.status = Status.ALLVISITED;
             }
 
             search(q, nearer, neighbor);
@@ -222,22 +306,50 @@ public class KDTree<E extends Instance> extends AbstractKNN<E> implements Neares
      * @param heap the heap object to store/update the kNNs found during the
      * search.
      */
-    private void search(E q, KDNode node, HeapSelect<Neighbor<E>> heap) {
-        if (node.isLeaf()) {
-            // look at all the instances in this leaf
-            for (int idx = node.index; idx < node.index + node.count; idx++) {
-                if (q == dataset.get(index[idx]) && identicalExcluded) {
-                    continue;
-                }
+    private class ChildNode extends AbstractKdTree<T> {
 
-                //TODO: squared distance would be enough
-                double distance = dm.measure(q, dataset.get(index[idx]));
-                Neighbor<E> datum = heap.peek();
-                if (distance < datum.distance) {
-                    datum.distance = distance;
-                    datum.index = index[idx];
-                    datum.key = dataset.get(index[idx]);
-                    heap.heapify();
+        private ChildNode(AbstractKdTree<T> parent, boolean right) {
+            super(parent, right);
+        }
+
+        // Distance measurements are always called from the root node
+        protected double pointDist(double[] p1, double[] p2) {
+            throw new IllegalStateException();
+        }
+
+        protected double pointRegionDist(double[] point, double[] min, double[] max) {
+            throw new IllegalStateException();
+        }
+    }
+
+    /**
+     * Class for tree with Weighted Squared Euclidean distancing
+     */
+    public static class WeightedSqrEuclid<T> extends AbstractKdTree<T> {
+
+        private double[] weights;
+
+        public WeightedSqrEuclid(int dimensions, Integer sizeLimit) {
+            super(dimensions, sizeLimit);
+            this.weights = new double[dimensions];
+            Arrays.fill(this.weights, 1.0);
+        }
+
+        public void setWeights(double[] weights) {
+            this.weights = weights;
+        }
+
+        protected double getAxisWeightHint(int i) {
+            return weights[i];
+        }
+
+        protected double pointDist(double[] p1, double[] p2) {
+            double d = 0;
+
+            for (int i = 0; i < p1.length; i++) {
+                double diff = (p1[i] - p2[i]) * weights[i];
+                if (!Double.isNaN(diff)) {
+                    d += diff * diff;
                 }
             }
         } else {
@@ -269,13 +381,7 @@ public class KDTree<E extends Instance> extends AbstractKNN<E> implements Neares
      * @param radius	the radius of search range from target.
      * @param neighbors the list of found neighbors in the range.
      */
-    private void search(E q, KDNode node, double radius, List<Neighbor<E>> neighbors) {
-        if (node.isLeaf()) {
-            // look at all the instances in this leaf
-            for (int idx = node.index; idx < node.index + node.count; idx++) {
-                if (q == dataset.get(index[idx]) && identicalExcluded) {
-                    continue;
-                }
+    public static class SqrEuclid<T> extends AbstractKdTree<T> {
 
                 double distance = dm.measure(q, dataset.get(index[idx]));
                 if (distance <= radius) {
@@ -302,13 +408,10 @@ public class KDTree<E extends Instance> extends AbstractKNN<E> implements Neares
         }
     }
 
-    @Override
-    public Neighbor<E> nearest(E q) {
-        Neighbor<E> neighbor = new Neighbor<>(null, 0, Double.MAX_VALUE);
-        search(q, root, neighbor);
-        neighbor.distance = Math.sqrt(neighbor.distance);
-        return neighbor;
-    }
+    /**
+     * Class for tree with Weighted Manhattan distancing
+     */
+    public static class WeightedManhattan<T> extends AbstractKdTree<T> {
 
     @Override
     public Neighbor<E>[] knn(E q, int k) {
@@ -338,10 +441,13 @@ public class KDTree<E extends Instance> extends AbstractKNN<E> implements Neares
         return neighbors;
     }
 
-    @Override
-    public void range(E q, double radius, List<Neighbor<E>> neighbors) {
-        if (radius <= 0.0) {
-            throw new IllegalArgumentException("Invalid radius: " + radius);
+    /**
+     * Class for tree with Manhattan distancing
+     */
+    public static class Manhattan<T> extends AbstractKdTree<T> {
+
+        public Manhattan(int dimensions, Integer sizeLimit) {
+            super(dimensions, sizeLimit);
         }
 
         search(q, root, radius, neighbors);
