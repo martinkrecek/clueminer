@@ -58,15 +58,20 @@ public class PairMerger<E extends Instance> extends AbstractMerger<E> implements
         HierarchicalResult result = new HClustResult(dataset, pref);
 
         level = 1;
+        int i = 0;
         //number of initial clusters
-        for (int i = 0; i < numClusters - 1; i++) {
-            //while (!pq.isEmpty()) {
+        //for (int i = 0; i < numClusters - 1; i++) {
+        while (!pq.isEmpty() && i < numClusters - 1) {
             singleMerge(pq.poll(), pref, clusterId);
             clusterId++;
+            i++;
         }
+
+        finalize(clusters, pq);
+
         //getGraphPropertyStore(clusters.get(0)).dump();
-        DendroTreeData treeData = new DynamicClusterTreeData(nodes[2 * numClusters - 2]);
-        treeData.createMapping(dataset.size(), treeData.getRoot(), nodes[2 * numClusters - 1]);
+        DendroTreeData treeData = new DynamicClusterTreeData(nodes[nodes.length - 2]);
+        treeData.createMapping(dataset.size(), treeData.getRoot(), nodes[nodes.length - 1]);
         result.setTreeData(treeData);
         return result;
     }
@@ -248,6 +253,11 @@ public class PairMerger<E extends Instance> extends AbstractMerger<E> implements
             }
         }
         return noise;
+    }
+
+    @Override
+    public void finalize(Clustering<E, GraphCluster<E>> clusters, PriorityQueue<PairValue<GraphCluster<E>>> pq) {
+        //nothing to do
     }
 
 }
