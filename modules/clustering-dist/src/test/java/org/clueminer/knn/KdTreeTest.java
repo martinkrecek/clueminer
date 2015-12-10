@@ -16,30 +16,53 @@
  */
 package org.clueminer.knn;
 
+import org.clueminer.dataset.api.Dataset;
+import org.clueminer.dataset.api.Instance;
+import org.clueminer.neighbor.Neighbor;
+import static org.junit.Assert.assertEquals;
+import org.junit.Test;
+
 /**
  *
  * @author deric
  */
-public class KdTreeTest {
+public class KDTreeTest extends KnnTest {
 
-    public KdTreeTest() {
+    private KDTree subject;
+
+    public KDTreeTest() {
     }
 
+    @Test
+    public void testNearest() {
+        Dataset<? extends Instance> data = insectDataset();
+        subject = new KDTree(data);
 
-    public class KdTreeImpl extends AbstractKdTree {
+        assertEquals(data.get(6), subject.nearest(data.get(0)).key);
+    }
 
-        public KdTreeImpl(int dimensions) {
-            super(dimensions, Integer.MIN_VALUE);
-
+    @Test
+    public void testNn() {
+        Dataset<? extends Instance> d = irisDataset();
+        subject = new KDTree();
+        subject.setDataset(d);
+        int k = 5;
+        //4.9,3.1,1.5,0.1, Iris-setosa
+        Instance ref = d.get(9);
+        Neighbor[] nn = subject.knn(ref, k);
+        assertEquals(k, nn.length);
+        Instance inst;
+        //there are 3 same instances iris dataset
+        //should find two very same instances (id: 34, 37)
+        for (int i = 0; i < 5; i++) {
+            inst = (Instance) nn[i].key;
+            //TODO: invert order of k-NN results
+            System.out.println("inst: " + inst.getIndex());
+            /*for (int j = 0; j < d.attributeCount(); j++) {
+             assertEquals(ref.get(j), inst.get(j), delta);
+             }*/
         }
-
-        public double pointDist(double[] p1, double[] p2) {
-            return 0.0;
-        }
-
-        public double pointRegionDist(double[] point, double[] min, double[] max) {
-            return 0.0;
-        }
+        assertEquals(k, nn.length);
     }
 
 }
