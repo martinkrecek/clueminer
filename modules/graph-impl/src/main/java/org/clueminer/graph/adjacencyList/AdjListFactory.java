@@ -17,8 +17,8 @@ public class AdjListFactory<E extends Instance> implements GraphFactory<E> {
 
     private static AdjListFactory instance;
 
-    private static long nodeIdCounter;
-    private static long edgeIdCounter;
+    private static long nodeIdCounter = 0;
+    private static long edgeIdCounter = 0;
 
     public static AdjListFactory getInstance() {
         if (instance == null) {
@@ -27,9 +27,8 @@ public class AdjListFactory<E extends Instance> implements GraphFactory<E> {
         return instance;
     }
 
-    protected AdjListFactory() {
-        nodeIdCounter = 0;
-        edgeIdCounter = 0;
+    private AdjListFactory() {
+        //nobody should be able to call this
     }
 
     @Override
@@ -108,5 +107,4 @@ public class AdjListFactory<E extends Instance> implements GraphFactory<E> {
         }
         return mapping;
     }
-
 }
