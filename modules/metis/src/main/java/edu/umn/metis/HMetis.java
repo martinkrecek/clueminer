@@ -23,6 +23,7 @@ import org.clueminer.graph.api.Graph;
 import org.clueminer.partitioning.api.Bisection;
 import org.clueminer.partitioning.api.Partitioning;
 import org.clueminer.utils.Props;
+import org.clueminer.utils.SystemInfo;
 import org.openide.util.Exceptions;
 import org.openide.util.lookup.ServiceProvider;
 
@@ -117,13 +118,15 @@ public class HMetis extends AbstractMetis implements Partitioning {
     protected File getBinary() throws IOException, InterruptedException {
         File f = helper.resource("hmetis2");
         if (!f.exists()) {
-            System.err.println("file " + f.getAbsolutePath() + "does not exist!");
+            throw new RuntimeException("file " + f.getAbsolutePath() + "does not exist!");
         }
-        //make sure metis is executable
-        Process p = Runtime.getRuntime().exec("chmod ugo+x " + f.getAbsolutePath());
-        p.waitFor();
-        helper.readStdout(p);
-        helper.readStderr(p);
+        if (SystemInfo.isLinux()) {
+            //make sure metis is executable
+            Process p = Runtime.getRuntime().exec("chmod ugo+x " + f.getAbsolutePath());
+            p.waitFor();
+            helper.readStdout(p);
+            helper.readStderr(p);
+        }
         return f;
     }
 
