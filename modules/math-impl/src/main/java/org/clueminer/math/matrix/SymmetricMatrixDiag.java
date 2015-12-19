@@ -26,6 +26,7 @@ import org.clueminer.math.Matrix;
  */
 public class SymmetricMatrixDiag extends AbstractMatrix implements Matrix {
 
+    private static final long serialVersionUID = -6828075338981173574L;
     private double[] A;
     private int n;
 
@@ -365,6 +366,13 @@ public class SymmetricMatrixDiag extends AbstractMatrix implements Matrix {
     public boolean has(int i, int j) {
         int mapped = map(i, j);
         return mapped < A.length && mapped >= 0;
+    }
+
+    @Override
+    public void setDiagonal(double value) {
+        for (int i = 0; i < n; i++) {
+            set(i, i, value);
+        }
     }
 
 }

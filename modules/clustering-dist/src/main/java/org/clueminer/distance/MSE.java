@@ -16,17 +16,21 @@
  */
 package org.clueminer.distance;
 
+import org.clueminer.distance.api.Distance;
 import org.clueminer.distance.api.SymmetricDistance;
 import org.clueminer.math.Vector;
+import org.openide.util.lookup.ServiceProvider;
 
 /**
  * Mean squared error
  *
  * @author deric
  */
+@ServiceProvider(service = Distance.class)
 public class MSE extends SymmetricDistance {
 
     private static final String NAME = "MSE";
+    private static final long serialVersionUID = -7402972399401757130L;
 
     @Override
     public String getName() {

@@ -14,48 +14,54 @@
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
-package org.clueminer.fastcommunity.orig;
+package org.clueminer.ap;
 
-import java.io.IOException;
-import org.clueminer.clustering.api.Cluster;
 import org.clueminer.clustering.api.Clustering;
 import org.clueminer.dataset.api.Dataset;
-import org.clueminer.dataset.api.Instance;
 import org.clueminer.fixtures.clustering.FakeDatasets;
+import org.clueminer.math.Matrix;
 import org.clueminer.utils.Props;
-import org.clueminer.utils.SystemInfo;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 /**
  *
  * @author deric
- * @param <E>
- * @param <C>
  */
-public class FastCommunityBinTest<E extends Instance, C extends Cluster<E>> {
+public class AffinityPropagationTest {
 
-    private static FastCommunityBin subject;
+    private static AffinityPropagation AP;
 
-    public FastCommunityBinTest() {
-        subject = new FastCommunityBin<>();
+    public AffinityPropagationTest() {
+        AP = new AffinityPropagation();
     }
 
     @Test
     public void testCluster() {
+        Dataset data = FakeDatasets.schoolData();
         Props props = new Props();
-        props.putInt("k", 3);
-        Dataset<E> dataset = (Dataset<E>) FakeDatasets.schoolData();
-        if (SystemInfo.isLinux()) {
-            Clustering<E, C> clust = subject.cluster(dataset, props);
-        }
+        Clustering clust = AP.cluster(data, props);
+        assertNotNull(clust);
+        assertEquals(2, clust.size());
     }
 
     @Test
-    public void testBinary() throws IOException, InterruptedException {
-        if (SystemInfo.isLinux()) {
-            assertTrue("binary does not exists", subject.getBinary("community").exists());
-        }
+    public void testIris() {
+        Dataset data = FakeDatasets.irisDataset();
+        Props props = new Props();
+        Clustering clust = AP.cluster(data, props);
+        assertNotNull(clust);
+        assertEquals(24, clust.size());
+    }
+
+    //@Test
+    public void testSimilarity() {
+        Dataset data = FakeDatasets.schoolData();
+        Matrix s = AP.similarity(data);
+        //s.printLower(2, 2);
+        assertTrue("should contain negative values", s.get(0, 4) < 0);
     }
 
 }
