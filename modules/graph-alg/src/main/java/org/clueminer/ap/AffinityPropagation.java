@@ -16,6 +16,7 @@
  */
 package org.clueminer.ap;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Random;
 import org.clueminer.clustering.api.Algorithm;
@@ -90,17 +91,17 @@ public class AffinityPropagation<E extends Instance, C extends Cluster<E>> exten
         int N = dataset.size();
 
         double pref;
-        if (props.containsKey(PREFERENCE)) {
-            pref = props.getDouble(PREFERENCE);
-        } else {
-            //TODO: try median instead
-            pref = (dataset.min() - dataset.max()) / 2.0;
-        }
 
         //initialize similarities
         Matrix S = similarity(dataset);
-        //Place preference on the diagonal of S
-        S.setDiagonal(pref);
+        //S.printLower(2, 5);
+
+        if (props.containsKey(PREFERENCE)) {
+            pref = props.getDouble(PREFERENCE);
+        } else {
+            pref = median(S);
+            props.putDouble(PREFERENCE, pref);
+        }
 
         //initialize messages
         Matrix A = new JMatrix(N, N);
@@ -127,22 +128,25 @@ public class AffinityPropagation<E extends Instance, C extends Cluster<E>> exten
 
         int i = 0, j, ii, K = 0;
 
+        //Place preference on the diagonal of S
+        S.setDiagonal(pref);
+
         while (!dn) {
             //first, compute responsibilities
             for (ii = 0; ii < N; ii++) {
-                double max1 = Double.MIN_VALUE, max2 = Double.MIN_VALUE, avsim;
+                double max1 = Double.NEGATIVE_INFINITY, max2 = Double.NEGATIVE_INFINITY, curr;
                 int yMax = -1;
 
                 //determine second-largest element of AS
                 for (j = 0; j < N; j++) {
-                    avsim = A.get(ii, j) + S.get(ii, j);
+                    curr = A.get(ii, j) + S.get(ii, j);
 
-                    if (avsim > max1) {
+                    if (curr > max1) {
                         max2 = max1;
-                        max1 = avsim;
+                        max1 = curr;
                         yMax = j;
-                    } else if (avsim > max2) {
-                        max2 = avsim;
+                    } else if (curr > max2) {
+                        max2 = curr; //second largest value
                     }
                 }
 
@@ -150,7 +154,7 @@ public class AffinityPropagation<E extends Instance, C extends Cluster<E>> exten
                 for (j = 0; j < N; j++) {
                     double oldVal = R.get(ii, j);
                     double newVal = (1 - lambda) * (S.get(ii, j) - (j == yMax ? max2 : max1)) + lambda * oldVal;
-                    R.set(ii, j, (newVal > Double.MAX_VALUE ? Double.MAX_VALUE : newVal));
+                    R.set(ii, j, (!isFinite(newVal) ? Double.MAX_VALUE : newVal));
                 }
             }
 
@@ -225,6 +229,59 @@ public class AffinityPropagation<E extends Instance, C extends Cluster<E>> exten
             i++;
         }
 
+        int[] c = maxCol(S, I, K);
+        //Dump.array(c, "assignments");
+        props.putInt("k", K);
+        //System.out.println("k = " + K);
+        //Dump.array(I, "I vec");
+        return extractClusters(dataset, props, c, K);
+    }
+
+    /**
+     * Could be replace by Double.isFinite which is available in Java 8
+     *
+     * @param d
+     * @return
+     */
+    public boolean isFinite(double d) {
+        return Math.abs(d) <= Double.MAX_VALUE;
+    }
+
+    /**
+     * Assign each item to one exemplar.
+     *
+     * @param S similarity matrix
+     * @param I indexes of medoids (exemplars)
+     * @param K number of detected medoids (exemplars)
+     * @return
+     */
+    private int[] maxCol(Matrix S, int[] I, int K) {
+        int[] c = new int[S.columnsCount()];
+        double val, max;
+        int maxIdx;
+        for (int i = 0; i < S.columnsCount(); i++) {
+            max = Double.NEGATIVE_INFINITY;
+            maxIdx = -1;
+            //find most similar exemplar
+            for (int j = 0; j < K; j++) {
+                val = S.get(i, I[j]);
+                //when comparing to an exemplar, always choose the exemplar
+                if (i == I[j]) {
+                    maxIdx = j;
+                    break;
+                }
+                if (val > max) {
+                    max = val;
+                    maxIdx = j;
+                }
+            }
+            c[i] = maxIdx;
+        }
+
+        return c;
+    }
+
+    protected Clustering<E, C> extractClusters(Dataset<E> dataset, Props props, int[] I, int K) {
         props.put("algorithm", getName());
         Clustering<E, C> res = (Clustering<E, C>) Clusterings.newList(K);
         Cluster<E> curr;
@@ -270,10 +327,38 @@ public class AffinityPropagation<E extends Instance, C extends Cluster<E>> exten
      *
      * @return
      */
-    private double tiny() {
+    protected double tiny() {
         long bits = Double.doubleToLongBits(Double.MIN_VALUE);
         bits++;
         return Double.longBitsToDouble(bits);
+    }
+
+    private double median(Matrix S) {
+        int n = S.rowsCount();
+        int capacity = ((n - 1) * n) >>> 1;
+        double[] m = new double[capacity];
+        double val;
+        int l = 0;
+        for (int i = 0; i < n; i++) {
+            for (int j = i + 1; j < n; j++) {
+                val = S.get(i, j);
+                if (!Double.isNaN(val) && val > Double.NEGATIVE_INFINITY) {
+                    m[l++] = val;
+                }
+            }
+        }
+        if (n != l) {
+            double[] tmp = new double[l];
+            System.arraycopy(m, 0, tmp, 0, l);
+        }
+        Arrays.sort(m);
+
+        int middle = m.length / 2;
+        if (m.length % 2 == 1) {
+            return m[middle];
+        } else {
+            return (m[middle - 1] + m[middle]) / 2.0;
+        }
     }
 
 }
